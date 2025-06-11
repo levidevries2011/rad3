@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Wheel of Names met Geheime Koppels</title>
+  <style>
+    body {
+      background: white;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1, h2 {
+      margin-top: 1rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      margin: 0.5rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 12px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: background-color 0.3s;
+    }
+
+    .btn:hover {
+      background-color: #45a049;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #page1, #page2 {
+      max-width: 600px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    input, select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin: 0.25rem;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    canvas {
+      background: #f0f8ff;
+      border-radius: 50%;
+      margin-top: 1rem;
+    }
+
+    #pointer {
+      width: 0; 
+      height: 0; 
+      border-left: 20px solid transparent;
+      border-right: 20px solid transparent;
+      border-bottom: 30px solid red;
+      position: relative;
+      top: 20px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="page1">
+    <h1>Stap 1: Voer namen in en kies geheime koppels</h1>
+    <input type="text" id="nameInput" placeholder="Naam toevoegen">
+    <button class="btn" onclick="addName()">Naam toevoegen</button>
+    <div id="namesList"></div>
+    <button class="btn" onclick="showPairingOptions()">Geheime koppels kiezen</button>
+    <div id="pairings" class="hidden"></div>
+    <button class="btn hidden" id="nextBtn" onclick="goToPage2()">Volgende</button>
+  </div>
+
+  <div id="page2" class="hidden">
+    <h1>Stap 2: Draai het Rad</h1>
+    <div id="pointer"></div>
+    <canvas id="wheel" width="500" height="500"></canvas>
+    <button class="btn" onclick="spinWheel()">Draai het Rad</button>
+    <h2 id="result"></h2>
+  </div>
+
+  <script>
+    const names = [];
+    const secretPairs = new Map();
+    const drawnNames = new Set();
+    const colors = ["#add8e6", "#e0ffff", "#ffe4e1", "#fafad2", "#e6e6fa"];
+
+    function addName() {
+      const input = document.getElementById('nameInput');
+      const name = input.value.trim();
+      if (name && !names.includes(name)) {
+        names.push(name);
+        updateNamesList();
+        input.value = '';
+      }
+    }
+
+    function updateNamesList() {
+      const listDiv = document.getElementById('namesList');
+      listDiv.innerHTML = '<h3>Toegevoegde namen:</h3><ul>' + names.map(n => `<li>${n}</li>`).join('') + '</ul>';
+    }
+
+    function showPairingOptions() {
+      if (names.length < 2) return alert("Minstens 2 namen nodig.");
+      const pairingsDiv = document.getElementById('pairings');
+      pairingsDiv.innerHTML = '';
+      names.forEach(name => {
+        const select = document.createElement('select');
+        select.id = `pair-${name}`;
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = `Partner voor ${name}`;
+        select.appendChild(defaultOption);
+        names.forEach(n => {
+          if (n !== name) {
+            const opt = document.createElement('option');
+            opt.value = n;
+            opt.textContent = n;
+            select.appendChild(opt);
+          }
+        });
+        pairingsDiv.appendChild(select);
+      });
+      pairingsDiv.classList.remove('hidden');
+      document.getElementById('nextBtn').classList.remove('hidden');
+    }
+
+    function goToPage2() {
+      names.forEach(name => {
+        const partner = document.getElementById(`pair-${name}`)?.value;
+        if (partner && name !== partner) {
+          secretPairs.set(name, partner);
+        }
+      });
+      document.getElementById('page1').classList.add('hidden');
+      document.getElementById('page2').classList.remove('hidden');
+      drawWheel();
+    }
+
+    let angle = 0;
+    let canvas = document.getElementById('wheel');
+    let ctx = canvas.getContext('2d');
+
+    function drawWheel() {
+      const filteredNames = names.filter(n => !drawnNames.has(n));
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = canvas.width / 2;
+      const angleStep = (2 * Math.PI) / filteredNames.length;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < filteredNames.length; i++) {
+        const start = i * angleStep + angle;
+        const end = start + angleStep;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(start + angleStep / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "black";
+        ctx.font = "16px sans-serif";
+        ctx.fillText(filteredNames[i], radius - 10, 0);
+        ctx.restore();
+      }
+    }
+
+    let nextPartner = null;
+
+    function spinWheel() {
+      const filteredNames = names.filter(n => !drawnNames.has(n));
+      if (filteredNames.length === 0) return;
+
+      let selectedName;
+
+      if (nextPartner) {
+        selectedName = nextPartner;
+        nextPartner = null;
+      } else {
+        selectedName = filteredNames[Math.floor(Math.random() * filteredNames.length)];
+        const partner = secretPairs.get(selectedName);
+        if (partner && !drawnNames.has(partner)) {
+          nextPartner = partner;
+        }
+      }
+
+      const index = filteredNames.indexOf(selectedName);
+      const angleStep = (2 * Math.PI) / filteredNames.length;
+      const targetAngle = 2 * Math.PI - (index * angleStep + angleStep / 2);
+      const spins = Math.floor(Math.random() * 3) + 4;
+      const totalRotation = spins * 2 * Math.PI + targetAngle;
+      const duration = 4000;
+      const start = performance.now();
+
+      function animate(time) {
+        const progress = Math.min((time - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        angle = totalRotation * eased;
+        drawWheel();
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          drawnNames.add(selectedName);
+          document.getElementById('result').textContent = `Gekozen: ${selectedName}`;
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+  </script>
+</body>
+</html>
